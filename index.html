@@ -502,14 +502,15 @@
   #roll { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
   .cline {
     margin: 0 auto; max-width: 30em; padding: 0 30px;
-    text-align: center; white-space: pre-wrap;
+    text-align: center; white-space: pre-wrap; text-wrap: balance;
     font-family: var(--serif); font-size: 15px; font-weight: 400; line-height: 2.35;
     letter-spacing: .14em; text-indent: .14em;
     color: #e4d9c4;
   }
-  /* 信里的空行＝屏上停一拍。留一半就够：整段拉太长，读的人只看到黑屏，
-     匀速走的时候大约一秒多一点的空档，是一口气而不是等待。 */
-  .cline + .cline { margin-top: 3.0em; }
+  /* 一句一句地看：句与句只隔一口气，换段再多停一拍。以前一条配置就是一整块，
+     长段七八行同时亮，读的人找不到落点；切成句以后，读区里始终只有一句。 */
+  .cline + .cline { margin-top: 1.35em; }
+  .cline + .cline-para { margin-top: 2.7em; }
   /* 黑底上 overlay 会把颗粒吃掉（黑跟任何颜色 overlay 还是黑），所以这一屏
      换成极淡的 screen 颗粒，并且让它一格一格跳——胶片颗粒是动的，
      钉在原地不动的颗粒看着像屏幕脏了。外扩 6px 是给位移留的余量。 */
@@ -560,6 +561,7 @@
     body[data-stage="6"] #overlay { padding-top: 2.4vh; }
   }
 </style>
+<!-- 版本 2026-10-27 09:49 · 尾幕分句：信这一层等字幕卡淡出才亮（以前卡片还在正中，第一句已经露在屏幕下沿）、一条配置按句号问号叹号切成一句一块（以前长段七八行同时亮，读的人跟不上），句距 1.35em、换段 2.7em、句子块 text-wrap:balance 免得尾行剩一两个字、匀速 30→35px/s 保住整封约一分钟 -->
 <!-- 版本 2026-10-22 23:35 · 尾幕再压等待：信那层容器淡入 1.1s+.35s→.5s+.1s（它之前把字整层压住，才是真等待）、字幕卡时长改由常量说了算（原来 CSS 写死 1.4s 和 JS 对不上，卡片最亮只到 .84）、卡片淡到一半信就开走、第一段起步位置 .68→.74 不跟卡片挤 -->
 </head>
 <body>
@@ -2675,7 +2677,7 @@ let rollT0 = 0, rollRun = false, rollStarted = false, rollCardDone = true;
 let rollHeld = false, rollAnchorY = 0, rollAnchorScrolled = 0;
 let rollPumping = false, rollTimers = [];
 
-const ROLL_SPEED = 30;      // 像素/秒：整封不到一分钟走完，读不过来有手按住
+const ROLL_SPEED = 35;      // 像素/秒：切成句之后行距多了，提速补回整封还是一分钟左右
 const ROLL_LEAD = 40;       // 兜底用的起挂距离（ROLL_START_AT=0 时生效）
 const ROLL_START_AT = .74;  // 起步时第一段就摆在屏高这个位置：0 是挂在画面下沿之外
 const ROLL_REST = .5;       // 走完，最后一句落在正中
@@ -2809,16 +2811,45 @@ function rollGuard(now) {
   if (stage === 7 && rollHeld && !pointer.down) rollUp(now);
 }
 
+/* 一句一块：一条配置是一段，段内再按句末标点切成句子。段整块亮起来的时候
+   一次七八行，眼睛找不到落点；切成句以后，读区里始终只有一句是亮的。
+   段内想强制换块就写 \n（当新的一段算）。 */
+function splitSentences(text) {
+  const END = '。！？!?…';
+  const TAIL = '”’」』）》>';
+  const out = [];
+  let buf = '';
+  for (let i = 0; i < text.length; i++) {
+    buf += text[i];
+    if (END.indexOf(text[i]) < 0) continue;
+    let j = i + 1;
+    while (j < text.length && (END.indexOf(text[j]) >= 0 || TAIL.indexOf(text[j]) >= 0)) {
+      buf += text[j];
+      j++;
+    }
+    i = j - 1;
+    if (buf.trim()) out.push(buf.trim());
+    buf = '';
+  }
+  if (buf.trim()) out.push(buf.trim());
+  return out;
+}
+
 function enterCredits() {
   rollEl = document.getElementById('roll');
   rollEl.innerHTML = '';
   rollLines = []; rollCenters = []; rollBlur = [];
   const days = String(rollDays());
   (CONFIG.credits || []).forEach(function (t) {
-    const d = document.createElement('div');
-    d.className = 'cline';
-    d.textContent = String(t).split('{{DAYS}}').join(days);
-    rollEl.appendChild(d);
+    String(t).split('{{DAYS}}').join(days).split('\n').forEach(function (para) {
+      const sents = splitSentences(para);
+      for (let i = 0; i < sents.length; i++) {
+        const d = document.createElement('div');
+        d.className = i === 0 ? 'cline cline-para' : 'cline';
+        d.textContent = sents[i];
+        rollEl.appendChild(d);
+      }
+    });
   });
   rollLines = [].slice.call(rollEl.children);
   if (!rollLines.length) return;
@@ -2831,7 +2862,8 @@ function enterCredits() {
   rollScrolled = Math.max(0, rollFrom + rollCenters[0] - H * ROLL_START_AT);
   rollRun = false; rollHeld = false; rollStarted = false;
   paintRoll();
-  document.getElementById('credits').classList.add('on');
+  /* 信这一层等字幕卡淡出去才亮：以前卡片还挂在正中，第一句已经在她脚下了。 */
+  const creditsEl = document.getElementById('credits');
   [].forEach.call(document.querySelectorAll('#wall .photo'), function (el, i) {
     el.style.transitionDelay = (i * 70) + 'ms';
     el.classList.add('sink');
@@ -2854,9 +2886,11 @@ function enterCredits() {
     later(function () {
       card.style.transitionDuration = (CARD_OUT / 1000) + 's';
       card.classList.remove('on');
+      creditsEl.classList.add('on');   // 卡片一开始淡出，信跟着淡进（.5s + .1s 延迟）
     }, CARD_IN + CARD_HOLD);
     later(rollStartRoll, CARD_IN + CARD_HOLD + 120);   // 卡片淡到一半，信就开走
   } else {
+    creditsEl.classList.add('on');
     later(rollStartRoll, 900);
   }
 }
