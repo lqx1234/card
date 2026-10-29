@@ -48,13 +48,14 @@
     '.status{min-height:22px;text-align:center;font-size:13px;letter-spacing:.06em;color:rgba(' + IVORY + ',.72);',
     '  transition:opacity .3s;}',
     '.status b{font-weight:400;color:rgba(' + GOLD + ',.92);}',
-    '.status span{display:block;font-size:11px;letter-spacing:.08em;color:rgba(' + IVORY + ',.34);margin-top:4px;}',
+    '.status span{display:block;font-size:11px;letter-spacing:.08em;color:rgba(' + IVORY + ',.45);margin-top:4px;}',
     '.legend{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;pointer-events:auto;}',
     '.chip{background:rgba(255,255,255,.025);border:1px solid rgba(' + GOLD + ',.2);border-radius:999px;',
     '  color:rgba(' + IVORY + ',.78);font:inherit;font-size:12.5px;letter-spacing:.04em;padding:8px 12px;',
     '  transition:transform .12s ease,background .2s,border-color .2s;}',
     '.chip:active{transform:scale(.96);background:rgba(' + GOLD + ',.1);border-color:rgba(' + GOLD + ',.45);}',
-    '.note{font-size:10.5px;letter-spacing:.08em;color:rgba(' + IVORY + ',.28);text-align:center;line-height:1.7;}',
+    '.note{font-size:11px;letter-spacing:.08em;color:rgba(' + IVORY + ',.42);text-align:center;line-height:1.7;}',
+    '@media (max-width:380px){.legend{gap:6px;}.chip{padding:8px 10px;}}',
     '.intro{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;',
     '  padding:calc(env(safe-area-inset-top) + 40px) 26px calc(env(safe-area-inset-bottom) + 40px);',
     '  background:radial-gradient(120% 80% at 50% 38%,rgba(15,17,26,.97),#05060a 70%);',
@@ -69,12 +70,12 @@
     '  color:#17130b;font:inherit;font-size:14px;letter-spacing:.16em;padding:14px 20px;font-weight:600;}',
     '.primary:active{background:rgba(' + GOLD + ',.8);}',
     '.primary[disabled]{opacity:.45;}',
-    '.link{margin-top:16px;background:none;border:0;color:rgba(' + IVORY + ',.42);font:inherit;font-size:12px;',
+    '.link{margin-top:16px;background:none;border:0;color:rgba(' + IVORY + ',.52);font:inherit;font-size:12px;',
     '  letter-spacing:.1em;padding:6px 10px;display:block;width:100%;}',
     '.link:active{color:rgba(' + IVORY + ',.75);}',
     '.progress{width:120px;height:1px;background:rgba(' + IVORY + ',.12);margin:18px auto 8px;overflow:hidden;}',
     '.progress i{display:block;height:100%;width:0;background:rgba(' + GOLD + ',.8);transition:width .2s;}',
-    '.progressText{font-size:10.5px;letter-spacing:.1em;color:rgba(' + IVORY + ',.34);min-height:15px;}',
+    '.progressText{font-size:11px;letter-spacing:.1em;color:rgba(' + IVORY + ',.42);min-height:15px;}',
     '.card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;width:min(86vw,340px);',
     '  background:#0b0d14;border:1px solid rgba(' + GOLD + ',.22);border-radius:18px;padding:24px 22px;',
     '  text-align:center;display:none;}',
@@ -360,6 +361,7 @@
       ui.statusS.textContent = '';
       ui.progress.style.width = '0%';
       ui.progressText.textContent = '第一次用要下载约 8 MB 手势引擎';
+      setNote(NOTE_CAM);
       ui.startCam.disabled = false;
       S.prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
@@ -399,6 +401,7 @@
       S.started = true;
       ui.intro.classList.add('gone');
       S.intro = false;
+      setNote(NOTE_CAM);
       setStatus('正在打开镜头…', '');
       /* 到这一步才下模型：只用触屏的话不花这 8 MB */
       loadEngine();
@@ -480,6 +483,7 @@
       S.started = true; S.touchMode = true; S.intro = false;
       ui.intro.classList.add('gone');
       hideCard();
+      setNote(NOTE_TOUCH);
       setStatus('现在是手指模式', '点下面的按钮，效果一样');
     }
 
@@ -1104,6 +1108,9 @@
     }
 
     /* ---------------- 状态 ---------------- */
+    var NOTE_CAM = '比出同一个手势停一下才算数<br>开不了镜头就点上面的按钮';
+    var NOTE_TOUCH = '点一下就有，想点几次点几次<br>不用对着镜头比划';
+    function setNote(html) { if (ui) ui.note.innerHTML = html; }
     function setStatus(main, sub) {
       var key = (main || '') + '|' + (sub || '');
       if (key === S.statusKey) return;

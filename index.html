@@ -1485,7 +1485,7 @@ const CONFIG = {
   cardSub: '',                  // 字幕卡下面那行小字，留空＝不出
   credits: [                  // 第 7 幕尾幕：一段一条，段内要换行就写 \n，{{DAYS}} 换成当天算出的天数
     '佳欣，先祝你生日快乐🎂',
-    '时间真的过得好快啊，咱俩都认识{{DAYS}}天了。',
+    '时间真的过得好快啊，咱俩都认识 {{DAYS}} 天了。',
     '现在想想那天，还真是我最幸运的一天。高中以后我就基本转去QQ音乐了，但那天也不知咋的，脑子一热又把网易云下回来了。先自己听了一小会儿歌，觉得无聊就点了匹配，没想到就匹到了你。咱俩的故事就这么开始了。',
     '一开始我就随口发了句“哈喽”，没想到你真回我了，还问我多大，让我加你抖音。原本我就是想着找个固定搭子，加你聊聊天。结果你说你是南昌大学的，我直接惊了，心想这哪来的天才少女啊，居然还让我加上了。说实话，那阵子我确实有点自卑，觉得咱俩不是一个level的，你就像高高在上的神女。也是那阵子，你开始跟我分享日常，你跳舞的视频、你的生日照片……后来慢慢发现，你其实是个活泼、漂亮又重感情的“天才疯女”。',
     '希望这一百多天只是个中途站，咱还有下一个一百多天，下下个一百多天，能一直在一起，好嘛？',
@@ -2277,6 +2277,11 @@ function placeWallPhoto(i) {
   const col = MOBILE_COL[i % MOBILE_COL.length];
   const a = deg * Math.PI / 180;
   const gap = 10;
+  /* 卡片宽度是按「left 之后还剩多少可用宽」算的：这一张起手的槽位在另一侧，
+     量的时候被卡成一百来像素，排进目标列后自己变宽，左沿就切出屏幕
+     （第 5 张实测：量到 133px、排完变 221px、左边 -32px）。
+     量之前先把 left 摆到它真正要去的这一侧。 */
+  el.style.left = (col === 'L' ? 8 : W - 8) + 'px';
   let s = 1, cx = 0, cy = 0, hh = 0;
   for (let t = 0; t < 7; t++) {
     img.style.width = Math.round(e.rw * s) + 'px';
@@ -2571,6 +2576,11 @@ function showNextPhoto() {
   const img = document.createElement('img');
   img.draggable = false;
   img.onload = function() {
+    /* 数据 URI 常在这一行就已经 complete，下面手动补调一次；浏览器自己的 load
+       事件过一拍还会再来一遍。第二遍把已经缩小的图重新撑回原尺寸，却不重排，
+       窄屏右列那张就按旧宽度定位、右沿顶出屏幕（360 实测 361.8px）。
+       量一次就够，第二遍直接丢掉。 */
+    img.onload = null;
     const ratio = img.naturalHeight / img.naturalWidth;
     let w = narrow
       ? ratio < .9 ? Math.min(W * .58, 240, H * .27)  // 横图守一行配文；矮屏按高再收一档，第 5 张才不会叠到别人配文上
@@ -2603,11 +2613,17 @@ function showNextPhoto() {
     });
   };
   img.onerror = function() { el.classList.add('show'); };
-  img.src = ph.src;
-  if (img.complete && img.naturalWidth) img.onload();
+  /* 配文先装上、卡片先挂进 #wall，再给 src：数据 URI 常常在下一行就同步 onload，
+     那会儿卡片还没进页面、配文也还没 append，窄屏会按 0 宽去排，
+     斜过来左边就切出屏幕（最后一首视频卡实测左溢 32px，配文被切掉半行）。 */
   const cap = document.createElement('div');
   cap.className = 'cap';
   cap.textContent = ph.text;
+  el.appendChild(img);
+  el.appendChild(cap);
+  document.getElementById('wall').appendChild(el);
+  img.src = ph.src;
+  if (img.complete && img.naturalWidth) img.onload();
   let drag = null;
   el.addEventListener('pointerdown', function(e) {
     if (e.button !== 0 || e.isPrimary === false) return;
@@ -2654,9 +2670,6 @@ function showNextPhoto() {
   }
   el.addEventListener('pointerup', endDrag);
   el.addEventListener('pointercancel', endDrag);
-  el.appendChild(img);
-  el.appendChild(cap);
-  document.getElementById('wall').appendChild(el);
   if (shownIdx >= CONFIG.photos.length) {
     /* 最后一张出完不把提示行空掉：尾幕就藏在这一下里，不写一句她找不到。
        措辞说「点空白处」，因为点在某张照片上这一屏已经不算了。 */
@@ -2684,6 +2697,7 @@ const ROLL_REST = .5;       // 走完，最后一句落在正中
 const CARD_IN = 450;        // 字幕卡淡进
 const CARD_HOLD = 450;      // 停在屏上读半拍
 const CARD_OUT = 400;       // 淡出（信不等它淡完，淡到一半就开走）
+const CARD_LEAD = 900;      // 黑场先落下来再上卡：照片沉下去要 1.15s、黑场 1s
 const FOCUS_BAND = .30;     // 离正中多远之内算合焦（占屏高比）
 const FOCUS_MAX = 3.2;      // 焦外最虚到几像素
 
@@ -2882,13 +2896,13 @@ function enterCredits() {
     /* 卡片淡进淡出的时长由这几个常量说了算：以前 CSS 里写死 1.4s，
        JS 那边 600 毫秒就翻篇，结果卡片最亮的时候只有 .84，两头对不上。 */
     card.style.transitionDuration = (CARD_IN / 1000) + 's';
-    later(function () { card.classList.add('on'); }, 200);
+    later(function () { card.classList.add('on'); }, CARD_LEAD);
     later(function () {
       card.style.transitionDuration = (CARD_OUT / 1000) + 's';
       card.classList.remove('on');
       creditsEl.classList.add('on');   // 卡片一开始淡出，信跟着淡进（.5s + .1s 延迟）
-    }, CARD_IN + CARD_HOLD);
-    later(rollStartRoll, CARD_IN + CARD_HOLD + 120);   // 卡片淡到一半，信就开走
+    }, CARD_LEAD + CARD_IN + CARD_HOLD);
+    later(rollStartRoll, CARD_LEAD + CARD_IN + CARD_HOLD + 120);   // 卡片淡到一半，信就开走
   } else {
     creditsEl.classList.add('on');
     later(rollStartRoll, 900);
